@@ -6,8 +6,7 @@ import (
 	"os"
 
 	"k8s.io/client-go/kubernetes"
-	"k8s.io/client-go/tools/clientcmd"
-	clientcmdapi "k8s.io/client-go/tools/clientcmd/api"
+	"k8s.io/client-go/rest"
 )
 
 // Client wraps the Kubernetes clientset
@@ -20,32 +19,29 @@ type Client struct {
 func NewClient(kubeconfigPath string) (*Client, error) {
 	logger := log.New(os.Stdout, "[K8S-CLIENT] ", log.LstdFlags)
 
-	logger.Printf("Loading kubeconfig from: %s", kubeconfigPath)
+	// Get K8s host and token from environment
+	k8sHost := os.Getenv("K8S_HOST")
+	k8sToken := os.Getenv("K8S_TOKEN")
 
-	// Load the kubeconfig file
-	configLoader := clientcmd.NewNonInteractiveDeferredLoadingClientConfig(
-		&clientcmd.ClientConfigLoadingRules{ExplicitPath: kubeconfigPath},
-		&clientcmd.ConfigOverrides{
-			ClusterInfo: clientcmdapi.Cluster{
-				Server: os.Getenv("K8S_HOST"),
-			},
-		})
-
-	// Get Config
-	config, err := configLoader.ClientConfig()
-	if err != nil {
-		return nil, fmt.Errorf("failed to get client config: %v", err)
+	if k8sHost == "" {
+		return nil, fmt.Errorf("K8S_HOST environment variable is required")
 	}
 
-	logger.Printf("Using API Server: %s", config.Host)
+	if k8sToken == "" {
+		return nil, fmt.Errorf("K8S_TOKEN environment variable is required")
+	}
 
-	// Log if we have client certificate data
-	if len(config.TLSClientConfig.CertData) > 0 {
-		logger.Printf("Client certificate data is present")
+	// Create config for token-based authentication
+	config := &rest.Config{
+		Host:        k8sHost,
+		BearerToken: k8sToken,
+		// Skip TLS verification for local development
+		TLSClientConfig: rest.TLSClientConfig{
+			Insecure: true,
+		},
 	}
-	if len(config.TLSClientConfig.KeyData) > 0 {
-		logger.Printf("Client key data is present")
-	}
+
+	logger.Printf("Connecting to Kubernetes API at: %s", k8sHost)
 
 	// Create the clientset
 	clientset, err := kubernetes.NewForConfig(config)
@@ -53,12 +49,12 @@ func NewClient(kubeconfigPath string) (*Client, error) {
 		return nil, fmt.Errorf("failed to create client: %v", err)
 	}
 
-	// Test the connection
 	client := &Client{
 		Clientset: clientset,
 		logger:    logger,
 	}
 
+	// Test the connection
 	if err := client.IsHealthy(); err != nil {
 		return nil, fmt.Errorf("failed health check: %v", err)
 	}

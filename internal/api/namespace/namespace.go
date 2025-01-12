@@ -1,4 +1,3 @@
-// internal/api/namespace/namespace.go
 package namespace
 
 import (

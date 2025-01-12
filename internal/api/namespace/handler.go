@@ -49,3 +49,45 @@ func (h *Handler) ListNamespaces(c *gin.Context) {
 		"data":    response,
 	})
 }
+
+// GetNamespace handles GET /api/v1/namespaces/:name
+func (h *Handler) GetNamespace(c *gin.Context) {
+	name := c.Param("name")
+	namespace, err := h.api.GetNamespace(c.Request.Context(), name)
+
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"success": false,
+			"error":   err.Error(),
+		})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"success": true,
+		"data": map[string]interface{}{
+			"name":            namespace.Name,
+			"status":          namespace.Status.Phase,
+			"creationTime":    namespace.CreationTimestamp,
+			"resourceVersion": namespace.ResourceVersion,
+			"labels":          namespace.Labels,
+			"annotations":     namespace.Annotations,
+		},
+	})
+}
+
+// GetNamespaceMetrics handles GET /api/v1/namespaces/:name/metrics
+func (h *Handler) GetNamespaceMetrics(c *gin.Context) {
+	name := c.Param("name")
+	metrics, err := h.api.GetNamespaceMetrics(c.Request.Context(), name)
+
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"success": false,
+			"error":   err.Error(),
+		})
+		return
+	}
+
+	c.JSON(http.StatusOK, metrics)
+}
